@@ -2,7 +2,7 @@ import database from './config/database.js'
 import {createServer} from "http";
 import express from "express";
 import cron from 'node-cron';
-import { readFile, writeFile } from 'fs/promises';
+import {readFile, writeFile} from 'fs/promises';
 import axios from "axios";
 
 const MYJSON = {
@@ -43,7 +43,7 @@ const FILE = "record.json"
 const app = express();
 const server = createServer(app);
 
-async function automation () {
+async function automation() {
     const connection = await database
 
     let data = await readFile(FILE, 'utf-8')
@@ -82,35 +82,18 @@ async function automation () {
     try {
         const response = await axios.post(
             "https://buildinglogs75e.asimmajid.com/api/machine-logs",
-            payload, // Axios automatically serializes this to JSON
+            payload,
             {
                 headers: {
-                    // Axios uses 'Authorization' correctly and will handle the redirect gracefully
                     'Authorization': `${authRes.token_type} ${authRes.token}`,
                     'Content-Type': 'application/json'
                 }
-                // Axios's default behavior is often configured to handle this type of redirect
             }
         );
-
-        // Axios rejects the Promise on 3xx, 4xx, and 5xx statuses automatically,
-        // but often handles redirects gracefully before rejecting.
-
-        // Response data is directly available on the 'data' property
-        console.log("✅ Axios POST Successful. Status:", response.status);
         console.log("Successful API Response Data:", response.data);
 
     } catch (error) {
-        // If an error still occurs (e.g., 401 Unauthorized or network issue)
-        if (error.response) {
-            // The request was made and the server responded with a status code
-            // that falls out of the range of 2xx
-            console.error("❌ API Call Failed with Status:", error.response.status);
-            console.error("❌ Response Data:", error.response.data);
-        } else {
-            // Something else happened (network error, etc.)
-            console.error("❌ Axios Error:", error.message);
-        }
+        console.error(error.message);
     }
 }
 
