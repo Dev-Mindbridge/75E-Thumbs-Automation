@@ -4,6 +4,7 @@ import express from "express";
 import cron from 'node-cron';
 import {readFile, writeFile} from 'fs/promises';
 import axios from "axios";
+import moment from 'moment';
 
 const MYJSON = {
     "values": [
@@ -50,56 +51,67 @@ async function automation() {
     const jsonID = JSON.parse(data)
     console.log(jsonID)
 
+    const result = await connection.request().query(`SELECT * FROM dbo.ThumbLogs WHERE synced = 0`)
+
     const payload = {
-        values: MYJSON.values.map(v => ({
-            userid: v.userid,
+        values: result.recordset.map(v => ({
+            userid: v.userid.toString(),
             username: v.username || '',
             machine: v.machine,
             status: v.status,
-            logdateTime: v.logdateTime
+            logdateTime: moment(v.logdateTime).format('YYYY-MM-DD HH:mm:ss')
         }))
     }
-
-    console.log(payload)
 
     const authPayload = {
         email: "itadmin@mindbridge.net",
         password: "123"
     }
 
-    const authResponse = await await fetch("https://buildinglogs75e.asimmajid.com/api/login", {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(authPayload),
-    });
+    if (result.recordset.length > 0) {
 
-    const authRes = await authResponse.json()
+        console.log("records found")
 
-    console.log(authRes)
+        const authResponse = await await fetch("https://buildinglogs75e.asimmajid.com/api/login", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(authPayload),
+        });
 
-    try {
-        const response = await axios.post(
-            "https://buildinglogs75e.asimmajid.com/api/machine-logs",
-            payload,
-            {
-                headers: {
-                    'Authorization': `${authRes.token_type} ${authRes.token}`,
-                    'Content-Type': 'application/json'
+        const authRes = await authResponse.json()
+
+        console.log(authRes)
+
+        try {
+            const response = await axios.post(
+                "https://buildinglogs75e.asimmajid.com/api/machine-logs",
+                payload,
+                {
+                    headers: {
+                        'Authorization': `${authRes.token_type} ${authRes.token}`,
+                        'Content-Type': 'application/json'
+                    }
                 }
-            }
-        );
-        console.log("Successful API Response Data:", response.data);
+            );
 
-    } catch (error) {
-        console.error(error.message);
+            await connection.request().query(`UPDATE ThumbLogs SET synced = 1 WHERE synced = 0`)
+
+            const res = response.data
+            await writeFile(FILE, JSON.stringify({ ID: res.last_inserted_id }, null, 2), 'utf8');
+
+        } catch (error) {
+            console.error(error);
+        }
+    } else {
+        console.log("Already updated no more records to be updated")
     }
 }
 
 server.listen(5000, async () => {
 
-    cron.schedule('*/1 * * * *', automation, {
+    cron.schedule('*/60 * * * *', automation, {
         scheduled: true,
     });
 
